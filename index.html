@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desafio Arthur para César - Desenvolvedor</title>
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+    <header>
+        <div class="header-content">
+            <h1>
+                <a href="//www.mercadolivre.com.br" target="_blank" class="nav-logo">
+                    <img src="https://upload.wikimedia.org/wikipedia/pt/0/04/Logotipo_MercadoLivre.png" alt="Mercado Livre" class="logo-ml">
+                </a>
+                <hr class="header-divider">
+                Desafio Mercado Livre
+                <span class="python-icon">🐍</span>
+            </h1>
+            <p>DESAFIO CÉSAR RODRIGUES – DESENVOLVEDOR</p>
+
+            <div class="header-badge">
+                <span>API Mercado Livre</span>
+                <span>Busca de Produtos</span>
+                <span>Frontend Funcional</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTEÚDO -->
+    <div class="busca-container">
+
+        <!-- BUSCA -->
+        <form id="formBusca">
+            <div class="form-group">
+                <input
+                    type="text"
+                    id="termoBusca"
+                    placeholder="Digite o termo de busca (ex: mochila, carregador, garrafa...)"
+                    required
+                >
+
+                <select id="limiteResultados" class="filtro-select" style="width: auto; margin-left: 10px;">
+                    <option value="10">10 resultados (padrão Arthur)</option>
+                    <option value="25">25 resultados</option>
+                    <option value="50">50 resultados</option>
+                </select>
+
+                <button type="submit" id="btnBuscar">
+                    <span class="btn-text">🔍 Buscar</span>
+                    <span class="btn-loader" style="display:none;">⏳</span>
+                </button>
+            </div>
+        </form>
+
+        <!-- MENSAGEM -->
+        <div id="mensagem" class="mensagem"></div>
+
+        <!-- FILTROS -->
+        <div id="filtrosContainer" class="filtros-container" style="display: none;">
+            <div class="filtros-header">
+                <h3>🔍 Filtros e Ordenação</h3>
+                <button id="btnLimparFiltros" class="btn-limpar">🔄 Limpar filtros</button>
+            </div>
+            
+            <div class="filtros-grid">
+                <div class="filtro-group">
+                    <label for="filtroNome">Nome do produto</label>
+                    <input 
+                        type="text" 
+                        id="filtroNome" 
+                        placeholder="Filtrar por nome..."
+                        class="filtro-input"
+                    >
+                </div>
+                
+                <div class="filtro-group">
+                    <label for="filtroStatus">Status</label>
+                    <select id="filtroStatus" class="filtro-select">
+                        <option value="">Todos</option>
+                        <option value="active">Disponíveis</option>
+                        <option value="indisponivel">Não disponíveis</option>
+                    </select>
+                </div>
+                
+                <div class="filtro-group">
+                    <label for="filtroAtributo">Atributo</label>
+                    <input 
+                        type="text" 
+                        id="filtroAtributo" 
+                        placeholder="Marca, modelo, cor..."
+                        class="filtro-input"
+                    >
+                </div>
+
+                <div class="filtro-group">
+                    <label for="ordenarPor">Ordenar por</label>
+                    <select id="ordenarPor" class="filtro-select">
+                        <option value="nome">Nome (A-Z)</option>
+                        <option value="nome-desc">Nome (Z-A)</option>
+                        <option value="id">ID</option>
+                        <option value="imagem">Imagem primeiro</option>
+                    </select>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- LOADING -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Buscando produtos…</p>
+        </div>
+
+        <!-- RESULTADOS -->
+        <div id="produtosContainer"></div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="footer-content margin-bottom 10px">
+
+            <div class="footer-links">
+                <a href="/docs" target="_blank">📚 Documentação</a>
+                <span>•</span>
+                <a href="/api/saude" target="_blank">💚 Health Check</a>
+            </div>
+        </div>
+    </footer>
+
+</div>
+
+<!-- MODAL JSON -->
+<div id="jsonModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Dados do Produto</h3>
+            <button class="modal-close" onclick="fecharModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <pre id="jsonContent"></pre>
+        </div>
+    </div>
+</div>
+
+<!-- SCRIPT -->
+<script>
+let produtosOriginais = [];
+let produtosFiltrados = [];
+
+const form = document.getElementById('formBusca');
+const termoBusca = document.getElementById('termoBusca');
+const btnBuscar = document.getElementById('btnBuscar');
+const btnText = btnBuscar.querySelector('.btn-text');
+const btnLoader = btnBuscar.querySelector('.btn-loader');
+const mensagem = document.getElementById('mensagem');
+const loading = document.getElementById('loading');
+const produtosContainer = document.getElementById('produtosContainer');
+const filtrosContainer = document.getElementById('filtrosContainer');
+const btnLimparFiltros = document.getElementById('btnLimparFiltros');
+
+const filtroNome = document.getElementById('filtroNome');
+const filtroStatus = document.getElementById('filtroStatus');
+const filtroAtributo = document.getElementById('filtroAtributo');
+const ordenarPor = document.getElementById('ordenarPor');
+const limiteResultados = document.getElementById('limiteResultados');
+
+function abrirModalJSON(produto) {
+    document.getElementById('jsonContent').textContent =
+        JSON.stringify(produto, null, 2);
+    document.getElementById('jsonModal').style.display = 'flex';
+}
+
+function fecharModal() {
+    document.getElementById('jsonModal').style.display = 'none';
+}
+
+// Fecha modal ao clicar fora
+window.onclick = function(event) {
+    const modal = document.getElementById('jsonModal');
+    if (event.target === modal) {
+        fecharModal();
+    }
+}
+
+async function buscarProdutos(termo) {
+    loading.classList.add('active');
+    btnBuscar.disabled = true;
+    btnText.style.display = 'none';
+    btnLoader.style.display = 'inline';
+
+    try {
+        const limite = parseInt(limiteResultados.value) || 10;
+        console.log(`🔍 Buscando ${limite} resultados para: "${termo}"`);
+        
+        const res = await fetch(`/api/buscar?q=${encodeURIComponent(termo)}&limit=${limite}`);
+        const data = await res.json();
+
+        produtosOriginais = data.produtos || [];
+        console.log(`📊 Encontrados ${produtosOriginais.length} produtos`);
+        
+        filtrosContainer.style.display = produtosOriginais.length ? 'block' : 'none';
+
+        aplicarFiltros();
+    } catch (error) {
+        console.error('❌ Erro na busca:', error);
+        mensagem.textContent = 'Erro ao buscar produtos';
+        mensagem.className = 'mensagem erro';
+        mensagem.style.display = 'block';
+    } finally {
+        loading.classList.remove('active');
+        btnBuscar.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoader.style.display = 'none';
+    }
+}
+
+function aplicarFiltros() {
+    produtosFiltrados = [...produtosOriginais];
+
+    if (filtroNome.value) {
+        produtosFiltrados = produtosFiltrados.filter(p =>
+            p.nome.toLowerCase().includes(filtroNome.value.toLowerCase())
+        );
+    }
+
+    if (filtroStatus.value) {
+        produtosFiltrados = produtosFiltrados.filter(p => {
+            const st = (p.status || '').toLowerCase();
+            if (filtroStatus.value === 'indisponivel') {
+                return st !== 'active'; // Tudo que não for active
+            }
+            return st === filtroStatus.value; // Para "active"
+        });
+    }
+
+    if (filtroAtributo.value) {
+        produtosFiltrados = produtosFiltrados.filter(p =>
+            p.atributos?.some(a =>
+                a.nome.toLowerCase().includes(filtroAtributo.value.toLowerCase()) ||
+                a.valor.toLowerCase().includes(filtroAtributo.value.toLowerCase())
+            )
+        );
+    }
+
+    if (ordenarPor.value === 'imagem') {
+        produtosFiltrados.sort((a, b) =>
+            (b.imagem !== 'Não informado') - (a.imagem !== 'Não informado')
+        );
+    }
+
+    renderizarProdutos(produtosFiltrados);
+}
+
+function renderizarProdutos(produtos) {
+    produtosContainer.innerHTML = '';
+
+    if (!produtos.length) {
+        produtosContainer.innerHTML =
+            '<div class="sem-resultados"><p>Nenhum produto encontrado</p></div>';
+        return;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'produtos-grid';
+
+    produtos.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        card.innerHTML = `
+            <div class="card-imagem-wrapper">
+                <img src="${p.imagem}" alt="${p.nome}">
+            </div>
+            <div class="card-conteudo">
+                <div class="card-header">
+                    <span class="card-id">${p.id}</span>
+                    <span class="card-status status-${p.status}">
+                        ${p.status}
+                    </span>
+                </div>
+                <h3 class="card-titulo">${p.nome}</h3>
+                <button class="btn-limpar" onclick='abrirModalJSON(${JSON.stringify(p)})'>
+                    Ver JSON
+                </button>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+
+    produtosContainer.appendChild(grid);
+}
+
+form.addEventListener('submit', e => {
+    e.preventDefault();
+    buscarProdutos(termoBusca.value.trim());
+});
+
+[filtroNome, filtroStatus, filtroAtributo, ordenarPor]
+    .forEach(el => el.addEventListener('input', aplicarFiltros));
+
+btnLimparFiltros.addEventListener('click', () => {
+    filtroNome.value = '';
+    filtroStatus.value = '';
+    filtroAtributo.value = '';
+    ordenarPor.value = 'nome';
+    aplicarFiltros();
+});
+
+// Event listener para mudança de limite
+limiteResultados.addEventListener('change', () => {
+    const termo = termoBusca.value.trim();
+    if (termo) {
+        console.log(`🔄 Mudança de limite para ${limiteResultados.value}, refazendo busca...`);
+        buscarProdutos(termo);
+    }
+});
+</script>
+
+</body>
+</html>
